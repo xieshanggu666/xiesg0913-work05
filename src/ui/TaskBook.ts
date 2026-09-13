@@ -142,32 +142,39 @@ export class TaskBook {
       const body = document.createElement('div');
       body.className = 'tb-body';
       def.steps.forEach((step, i) => {
-        const stepDone = !!state?.steps[i]?.done;
+        const stepState = state?.steps[i];
+        const stepDone = !!stepState?.done;
+        // 被探索事实锁定的章（自动步，或事实达成的可跳过步）不能手动取消
+        const locked = !!stepState?.locked;
         const row = document.createElement('div');
         row.className = 'tb-step' + (stepDone ? ' done' : '');
 
         const stamp = document.createElement('button');
         stamp.type = 'button';
-        stamp.className = 'tb-stamp';
+        stamp.className = 'tb-stamp' + (locked && stepDone ? ' locked' : '');
         stamp.setAttribute('aria-pressed', String(stepDone));
-        stamp.setAttribute(
-          'aria-label',
-          stepDone ? `取消第 ${i + 1} 步的印章` : `给第 ${i + 1} 步盖章`
-        );
-        stamp.textContent = stepDone ? '✓' : String(i + 1);
-        stamp.disabled = step.kind === 'auto';
-        stamp.title = step.kind === 'auto' ? '这一步会自动完成' : '聊完后点这里盖章';
-        if (step.kind === 'manual') {
+        if (locked) {
+          stamp.disabled = true;
+          stamp.setAttribute('aria-label', `第 ${i + 1} 步已自动完成`);
+          stamp.title = '已由探索完成，自动盖章';
+        } else {
+          stamp.setAttribute(
+            'aria-label',
+            stepDone ? `取消第 ${i + 1} 步的印章` : `给第 ${i + 1} 步盖章`
+          );
+          stamp.title = '聊完后点这里盖章（再点可取消）';
           stamp.addEventListener('click', () => this.cb.onToggleManual(`${def.id}:${step.id}`));
         }
+        stamp.textContent = stepDone ? '✓' : String(i + 1);
 
         const texts = document.createElement('div');
         texts.className = 'tb-step-text';
         const main = document.createElement('p');
         main.className = 'tb-step-main';
         const tag = document.createElement('span');
-        tag.className = 'tb-tag ' + step.kind;
-        tag.textContent = step.kind === 'auto' ? '自动' : '盖章';
+        // 事实达成的可跳过步也呈现为「自动」，让家长一眼明白这个章不能取消
+        tag.className = 'tb-tag ' + (locked ? 'auto' : step.kind);
+        tag.textContent = locked ? '自动' : '盖章';
         main.append(tag, document.createTextNode(step.text));
         texts.append(main);
         if (step.hint) {

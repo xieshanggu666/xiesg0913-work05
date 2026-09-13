@@ -753,9 +753,16 @@ canvas {
 }
 
 button.tb-stamp:disabled {
-  /* 自动步骤：圆圈呈现为小传感器样式，不可点 */
+  /* 自动步骤未完成时：圆圈呈现为小传感器样式，不可点 */
   cursor: default;
   border-style: dashed;
+}
+
+/* 事实锁定/自动判定且已完成的章：实线实心，和普通完成章一致 */
+.tb-step.done button.tb-stamp:disabled,
+.tb-stamp.locked {
+  border-style: solid;
+  cursor: default;
 }
 
 .tb-step-text {

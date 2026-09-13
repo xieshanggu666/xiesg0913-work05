@@ -816,6 +816,12 @@ export class Game {
   }
 
   private toggleTaskStamp(key: string): void {
+    // 防御：被探索事实锁定的步骤不允许取消（UI 按钮本已禁用）
+    const [taskId, stepId] = key.split(':');
+    const def = TASKS.find((t) => t.id === taskId);
+    const step = def?.steps.find((s) => s.id === stepId);
+    const snap = this.taskProgress.snapshot(this.taskLive());
+    if (step && (step.kind === 'auto' || step.locked?.(snap))) return;
     this.taskProgress.toggleManual(key);
     this.refreshTaskBook();
   }

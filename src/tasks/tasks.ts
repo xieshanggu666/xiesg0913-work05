@@ -57,6 +57,12 @@ export interface TaskStepDef {
   /** auto：装置自动判定；manual：家长和孩子聊完后手动盖章 */
   kind: 'auto' | 'manual';
   done: (snap: TaskSnap) => boolean;
+  /**
+   * 仅用于「可跳过的引导步」：手动步骤若另有事实达成条件（如录音已进过圆圈），
+   * 事实达成时按自动章锁定、不可取消；事实未达成时仍可手动盖「跳过章」。
+   * 返回 true 表示当前是被事实锁定的状态。
+   */
+  locked?: (snap: TaskSnap) => boolean;
   /** 未完成时展示的快捷操作（调天气/水位/录音/保存） */
   action?: TaskAction;
 }
@@ -72,6 +78,8 @@ export interface TaskDef {
 export interface StepState {
   id: string;
   done: boolean;
+  /** true：由探索事实锁定的自动章，印章不可点；false/undefined：手动盖的章，可取消 */
+  locked: boolean;
 }
 
 export interface TaskState {
@@ -265,9 +273,10 @@ export const TASKS: readonly TaskDef[] = [
       {
         id: 'add-voice',
         kind: 'manual',
-        text: '试着把一块橙色录音碎片也放进歌里（没录音可跳过）',
-        hint: '这一步不强制：每个家庭的河流之歌，都允许不一样。',
+        text: '试着把一块橙色录音碎片也放进歌里；没有录音也没关系，可以先盖章跳过',
+        hint: '这一步不强制：每个家庭的河流之歌，都允许不一样。放进录音后会变成自动章，盖过的「跳过章」不能取消也无需取消。',
         done: (s) => !!s.manual['river-song:add-voice'] || s.facts.voiceInSlotEver,
+        locked: (s) => s.facts.voiceInSlotEver,
       },
       {
         id: 'name-it',
@@ -290,7 +299,11 @@ export const TASKS: readonly TaskDef[] = [
 
 export function evaluateTasks(snap: TaskSnap): TaskState[] {
   return TASKS.map((def) => {
-    const steps = def.steps.map((step) => ({ id: step.id, done: step.done(snap) }));
+    const steps = def.steps.map((step) => {
+      // 纯自动步一律锁定；手动步只有在事实达成（locked 谓词）时才锁定
+      const locked = step.kind === 'auto' || !!step.locked?.(snap);
+      return { id: step.id, done: step.done(snap), locked };
+    });
     return { id: def.id, done: steps.every((s) => s.done), steps };
   });
 }
