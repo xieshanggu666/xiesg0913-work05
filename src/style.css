@@ -517,6 +517,370 @@ canvas {
   line-height: 1.6;
 }
 
+/* ---------- 声音探索任务册 ---------- */
+
+/* 入口按钮上的完成数徽章 */
+.task-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff8f00;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  vertical-align: middle;
+}
+
+.task-badge[hidden] {
+  display: none;
+}
+
+#taskBookOpen:disabled {
+  opacity: 0.55;
+}
+
+.tb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 31;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(56px, env(safe-area-inset-top, 0px)) 12px 12px;
+  background: rgba(8, 25, 50, 0.5);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tb-backdrop.hidden {
+  display: none;
+}
+
+.tb-sheet {
+  width: min(560px, 100%);
+  background: #fffdf5;
+  border-radius: 22px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  border: 2px solid #ffe3a8;
+}
+
+.tb-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tb-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  color: #5d4037;
+}
+
+.tb-progress {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a6762a;
+}
+
+.tb-close {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: #fbe9e7;
+  color: #b71c1c;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .tb-close:hover {
+    background: #ffccbc;
+  }
+}
+
+.tb-alldone {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tb-alldone[hidden] {
+  display: none;
+}
+
+.tb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tb-card {
+  border: 2px solid #ffe3a8;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.tb-card.done {
+  border-color: #ffca28;
+  background: #fffde7;
+}
+
+.tb-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tb-head-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tb-icon {
+  flex: 0 0 auto;
+  font-size: 26px;
+  width: 34px;
+  text-align: center;
+}
+
+.tb-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tb-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #4e342e;
+}
+
+.tb-goal {
+  font-size: 12.5px;
+  color: #7d6f63;
+  line-height: 1.45;
+}
+
+.tb-dots {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+.tb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e0dccf;
+}
+
+.tb-dot.on {
+  background: #ffb300;
+}
+
+.tb-card.done .tb-title::after {
+  content: ' 已盖章 ⭐';
+  font-size: 12px;
+  color: #e65100;
+  font-weight: 700;
+}
+
+.tb-body {
+  padding: 2px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tb-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.tb-step.done .tb-step-main {
+  color: #8d7b62;
+}
+
+.tb-stamp {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 2px solid #d7c9a8;
+  background: #fdf8ec;
+  color: #a8926a;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tb-step.done .tb-stamp {
+  border-color: #ffb300;
+  background: #ffca28;
+  color: #4e342e;
+}
+
+button.tb-stamp:disabled {
+  /* 自动步骤：圆圈呈现为小传感器样式，不可点 */
+  cursor: default;
+  border-style: dashed;
+}
+
+.tb-step-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tb-step-main {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #3e2723;
+}
+
+.tb-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+.tb-tag.auto {
+  background: #e3f2fd;
+  color: #0d47a1;
+}
+
+.tb-tag.manual {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.tb-step.done .tb-tag {
+  opacity: 0.75;
+}
+
+.tb-hint {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6d5c4c;
+  background: #faf4e4;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+.tb-action {
+  margin-top: 7px;
+  min-height: 38px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 999px;
+  background: #1e88e5;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .tb-action:hover {
+    background: #1976d2;
+  }
+}
+
+.tb-action:active {
+  transform: scale(0.97);
+}
+
+.tb-reset {
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #8d6e63;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tb-reset.confirm {
+  background: #e53935;
+  color: #fff;
+  font-weight: 700;
+  animation: pulse 1s infinite;
+}
+
+.tb-foot {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8d7b62;
+  text-align: center;
+}
+
+.tb-backdrop button:focus-visible {
+  outline: 3px solid #1565c0;
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .tb-backdrop {
+    align-items: flex-end;
+    padding: 12px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tb-sheet {
+    border-radius: 20px;
+    padding: 14px 14px 12px;
+    max-height: 82vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tb-heading h2 {
+    font-size: 17px;
+  }
+
+  .tb-goal {
+    font-size: 12px;
+  }
+}
+
 /* ---------- 听音挑战控制条 ---------- */
 
 .challenge-bar {

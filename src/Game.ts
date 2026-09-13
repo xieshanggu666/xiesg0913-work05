@@ -11,6 +11,9 @@ import { Weather } from './world/Weather';
 import { Panel } from './ui/Panel';
 import { ListeningChallenge } from './ui/ListeningChallenge';
 import type { ChallengePhase } from './ui/ListeningChallenge';
+import { TaskBook, describeAction } from './ui/TaskBook';
+import { TaskProgress, TASKS, evaluateTasks } from './tasks/tasks';
+import type { TaskAction, TaskState } from './tasks/tasks';
 import { Portfolio } from './data/Portfolio';
 import type { FragmentDoc, SongDoc } from './data/Portfolio';
 import { bytesToBase64, base64ToBytes, QuotaError, ImportError } from './data/Portfolio';
@@ -64,6 +67,11 @@ export class Game {
   private weather = new Weather();
   private notes = new NoteField(SLOT_COUNT, SCALE);
   private portfolio = new Portfolio();
+  private taskProgress = new TaskProgress();
+  private taskBook: TaskBook | null = null;
+  /** 进入本次会话时已经盖完章的任务：不再重复弹祝贺，之后新完成的才提示 */
+  private taskCongratulated = new Set<string>();
+  private allTasksCongratulated = false;
   private currentSongId: string | null = null;
   private fragments: Fragment[] = [];
   private slots: (Fragment | null)[] = Array(SLOT_COUNT).fill(null);
@@ -137,14 +145,28 @@ export class Game {
       onFlow: (v) => {
         this.flow = v;
         this.audio.setFlow(v);
+        if (v >= 0.7) {
+          this.taskProgress.record({ flowFast: true });
+          this.refreshTaskBook();
+        }
       },
       onLevel: (v) => {
         this.level = v;
         this.audio.setLevel(v);
+        if (v >= 0.75) {
+          this.taskProgress.record({ highWater: true });
+          this.refreshTaskBook();
+        }
       },
-      onWeather: (w) => this.setWeather(w),
+      onWeather: (w) => {
+        this.setWeather(w);
+        // 只记录家长/孩子主动点的天气；待机 75 秒自动轮换不算“探索过”
+        this.taskProgress.record({ weathersSeen: [w] });
+        this.refreshTaskBook();
+      },
       onMic: () => void this.toggleMic(),
       onStartChallenge: () => this.startChallenge(),
+      onOpenTaskBook: () => this.openTaskBook(),
       onMute: (m) => this.audio.setMuted(m),
       onAnyGesture: () => void this.audio.unlock(),
       onSaveSong: (name, asNew) => this.saveSong(name, asNew),
@@ -158,6 +180,18 @@ export class Game {
     });
     this.panel.setNotes(0, SLOT_COUNT);
     this.refreshSongList();
+
+    this.taskBook = new TaskBook({
+      onAction: (a) => this.runTaskAction(a),
+      onToggleManual: (key) => this.toggleTaskStamp(key),
+      onReset: () => this.resetTaskBook(),
+      onClose: () => this.closeTaskBook(),
+    });
+    // 上次会话已完成的任务不弹新祝贺，只在徽章上显示数量
+    const initial = evaluateTasks(this.taskProgress.snapshot(this.taskLive()));
+    for (const t of initial) if (t.done) this.taskCongratulated.add(t.id);
+    this.allTasksCongratulated = initial.every((t) => t.done) && initial.length > 0;
+    this.refreshTaskBook();
 
     this.listeningChallenge = new ListeningChallenge({
       onReplay: () => this.replayChallengeDemo(),
@@ -389,6 +423,14 @@ export class Game {
     this.slots[i] = frag;
     if (!silent) this.audio.pluckNow(frag.spec.freq * 2);
     if (!silent && this.challenge.active) this.clearChallengeFeedback();
+    if (!silent && !this.challenge.active) {
+      this.taskProgress.record({
+        maxSlotsFilled: this.slots.filter((f) => f !== null).length,
+        tonePlaced: frag.spec.kind === 'tone',
+        voiceInSlotEver: frag.spec.kind === 'voice',
+      });
+      this.refreshTaskBook();
+    }
     return true;
   }
 
@@ -487,6 +529,8 @@ export class Game {
     this.collected++;
     this.panel.setNotes(this.collected, SLOT_COUNT);
     this.audio.chime(note.freq);
+    this.taskProgress.record({ notesCollectedEver: this.collected });
+    this.refreshTaskBook();
     if (this.collected === SLOT_COUNT && !this.celebrating) {
       this.celebrating = true;
       this.audio.fanfare();
@@ -702,6 +746,124 @@ export class Game {
     this.panel.toast('已退出挑战，回到你的河流 ♪');
   }
 
+  // ---------- 声音探索任务册 ----------
+
+  /** 任务册能感知的“当前画面”事实 */
+  private taskLive(): { slotsFilled: number } {
+    return { slotsFilled: this.slots.filter((f) => f !== null).length };
+  }
+
+  private openTaskBook(): void {
+    if (this.challenge.active) {
+      this.panel.toast('先退出听音挑战，再打开任务册 🎧');
+      return;
+    }
+    void this.audio.unlock();
+    // 打开时先同步一次圆圈占用峰值（家长可能刚帮孩子摆好碎片）
+    this.recordSlotFacts();
+    const states = evaluateTasks(this.taskProgress.snapshot(this.taskLive()));
+    this.taskBook!.show(states);
+    // 手机上面板是底部抽屉，会和任务册叠在一起：先替家长收起
+    const panelEl = document.getElementById('panel');
+    if (panelEl && !panelEl.classList.contains('hidden')) {
+      panelEl.classList.add('hidden');
+      document.getElementById('panelToggle')?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  private closeTaskBook(): void {
+    this.taskBook?.hide();
+  }
+
+  /** 任务册里的快捷动作：直接驱动现有装置能力，再立刻刷新盖章状态 */
+  private runTaskAction(action: TaskAction): void {
+    void this.audio.unlock();
+    switch (action.kind) {
+      case 'weather':
+        if (action.weather) {
+          this.setWeather(action.weather);
+          this.taskProgress.record({ weathersSeen: [action.weather] });
+        }
+        break;
+      case 'setLevel': {
+        const v = action.value ?? 0.85;
+        this.level = v;
+        this.audio.setLevel(v);
+        this.panel.setLevel(v);
+        if (v >= 0.75) this.taskProgress.record({ highWater: true });
+        break;
+      }
+      case 'setFlow': {
+        const v = action.value ?? 0.85;
+        this.flow = v;
+        this.audio.setFlow(v);
+        this.panel.setFlow(v);
+        if (v >= 0.7) this.taskProgress.record({ flowFast: true });
+        break;
+      }
+      case 'mic':
+        // 复用现有录音流程（包含挑战/内录互斥与权限失败提示），其内部会自行 toast，
+        // 这里不再覆盖“录音中…”提示
+        void this.toggleMic();
+        this.refreshTaskBook();
+        return;
+      case 'save':
+        this.panel.openSaveDialog();
+        break;
+    }
+    this.panel.toast(describeAction(action));
+    this.refreshTaskBook();
+  }
+
+  private toggleTaskStamp(key: string): void {
+    this.taskProgress.toggleManual(key);
+    this.refreshTaskBook();
+  }
+
+  private resetTaskBook(): void {
+    this.taskProgress.reset();
+    this.taskCongratulated.clear();
+    this.allTasksCongratulated = false;
+    this.refreshTaskBook();
+    this.panel.toast('任务册清空啦，可以陪孩子重新出发 📖');
+  }
+
+  /** 重新评估全部任务：渲染覆盖层（若开着）、更新入口徽章、对新完成的任务祝贺 */
+  private refreshTaskBook(): void {
+    const states = evaluateTasks(this.taskProgress.snapshot(this.taskLive()));
+    if (this.taskBook?.visible) this.taskBook.render(states);
+    const doneCount = states.filter((t) => t.done).length;
+    this.panel.setTaskBookBadge(doneCount, TASKS.length);
+
+    for (const state of states) {
+      if (state.done && !this.taskCongratulated.has(state.id)) {
+        this.taskCongratulated.add(state.id);
+        const def = TASKS.find((t) => t.id === state.id)!;
+        this.panel.toast(`⭐「${def.title}」任务完成，盖一个章！`);
+        // 集齐音符的庆祝音阶正在播时不叠加，只做轻提示音
+        if (!this.celebrating) this.audio.pluckNow(659.25);
+      }
+    }
+    if (doneCount === TASKS.length && !this.allTasksCongratulated) {
+      this.allTasksCongratulated = true;
+      this.audio.fanfare();
+      this.panel.toast('🏆 整本任务册都完成啦，小小声音探险家！');
+    } else if (doneCount < TASKS.length) {
+      this.allTasksCongratulated = false;
+    }
+  }
+
+  /** 圆圈占用相关的两个探索事实：放进内置音符、历史最多占用格数、录音进过圆圈 */
+  private recordSlotFacts(): void {
+    const filled = this.slots.filter((f) => f !== null).length;
+    if (filled === 0) return;
+    this.taskProgress.record({
+      maxSlotsFilled: filled,
+      tonePlaced: this.slots.some((f) => f?.spec.kind === 'tone'),
+      voiceInSlotEver: this.slots.some((f) => f?.spec.kind === 'voice'),
+    });
+  }
+
   // ---------- 录音 ----------
 
   private async toggleMic(): Promise<void> {
@@ -763,6 +925,8 @@ export class Game {
       this.fragments.push(frag);
       Matter.Composite.add(this.engine.world, frag.body);
       this.panel.toast('你的声音游进河里啦！🐟');
+      this.taskProgress.record({ micRecordings: this.taskProgress.facts.micRecordings + 1 });
+      this.refreshTaskBook();
     } catch {
       this.panel.toast('这段声音没法用 😢');
     }
@@ -908,6 +1072,8 @@ export class Game {
       this.portfolio.save(doc);
       this.currentSongId = id;
       this.refreshSongList();
+      this.taskProgress.record({ songSaved: true });
+      this.refreshTaskBook();
       this.panel.toast(existing ? `已保存《${name}》💾` : `《${name}》收进作品集啦！📚`);
     } catch (e) {
       if (e instanceof QuotaError) this.panel.toast(e.message);

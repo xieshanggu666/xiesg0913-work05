@@ -8,6 +8,7 @@ export interface PanelCallbacks {
   onWeather: (w: WeatherKind) => void;
   onMic: () => void;
   onStartChallenge: () => void;
+  onOpenTaskBook: () => void;
   onMute: (muted: boolean) => void;
   onAnyGesture: () => void;
   /** 保存（或覆盖）当前作品；asNew 时即使已有当前作品也新建一条 */
@@ -98,6 +99,7 @@ export class Panel {
     this.micBtn.addEventListener('click', () => cb.onMic());
 
     el<HTMLButtonElement>('challengeStart').addEventListener('click', () => cb.onStartChallenge());
+    el<HTMLButtonElement>('taskBookOpen').addEventListener('click', () => cb.onOpenTaskBook());
 
     this.muteBtn = el<HTMLButtonElement>('mute');
     this.muteBtn.addEventListener('click', () => {
@@ -376,6 +378,27 @@ export class Panel {
     const btn = document.getElementById('challengeStart') as HTMLButtonElement;
     btn.disabled = active;
     btn.textContent = active ? '🎧 挑战进行中' : '🎧 听音挑战';
+    // 听音挑战与任务册是两种引导模式，互斥以免碎片可用性规则互相干扰
+    const tb = document.getElementById('taskBookOpen') as HTMLButtonElement;
+    tb.disabled = active;
+  }
+
+  /** 任务册入口上的小徽章：完成任务数；0 或全部完成后不显示数字 */
+  setTaskBookBadge(done: number, total: number): void {
+    const badge = document.getElementById('taskBookBadge');
+    if (!badge) return;
+    if (done > 0 && done < total) {
+      badge.textContent = String(done);
+      badge.hidden = false;
+    } else {
+      badge.textContent = '';
+      badge.hidden = true;
+    }
+  }
+
+  /** 任务册「去保存这首歌」快捷动作：直接打开命名对话框（有现名则覆盖保存） */
+  openSaveDialog(): void {
+    this.openDialog('save');
   }
 
   setWeatherActive(w: WeatherKind): void {
