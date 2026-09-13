@@ -446,7 +446,8 @@ canvas {
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  /* 必须高于任务册遮罩（31）：任务册里的「去保存这首歌」会在任务册之上弹出命名框 */
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -975,7 +976,8 @@ button.tb-stamp:disabled {
   bottom: 64px;
   left: 50%;
   transform: translate(-50%, 10px);
-  z-index: 20;
+  /* 高于命名框（40）：保存成功等反馈在任务册 + 命名框场景下仍要清晰可见 */
+  z-index: 45;
   max-width: min(90vw, 420px);
   text-align: center;
   background: rgba(20, 40, 70, 0.88);

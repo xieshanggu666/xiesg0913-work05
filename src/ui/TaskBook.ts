@@ -52,7 +52,11 @@ export class TaskBook {
       if (e.target === this.root) this.cb.onClose();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !this.root.classList.contains('hidden')) this.cb.onClose();
+      if (e.key !== 'Escape' || this.root.classList.contains('hidden')) return;
+      // 命名框（z-index 更高）打开时，Esc 只归命名框处理，避免一次按键连关两层
+      const songDialog = document.getElementById('songDialog');
+      if (songDialog && !songDialog.classList.contains('hidden')) return;
+      this.cb.onClose();
     });
   }
 
